@@ -1,217 +1,264 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   Image,
   TouchableOpacity,
+  StyleSheet,
   ScrollView,
+  SafeAreaView,
+  Pressable,
+  Modal,
   Linking,
+  Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useUser } from '../context/UserContext';
-import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { supabase } from '../lib/supabase';
 
-export default function HomeScreen() {
-  const navigation = useNavigation();
-  const { userRole } = useUser();
+export default function HomeScreen({ navigation }) {
+  const [events, setEvents] = useState([]);
+  const [chairmanMessage, setChairmanMessage] = useState(null);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [profileExists, setProfileExists] = useState(false);
 
-  const openEmail = () => {
-    Linking.openURL('mailto:info@hoopatribe-nsn.gov');
-  };
+  useEffect(() => {
+    fetchEvents();
+    fetchChairmanMessage();
+    fetchUserProfile();
+  }, []);
+
+  async function fetchUserProfile() {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session?.user) return;
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, avatar_url')
+      .eq('id', session.user.id)
+      .single();
+
+    if (profileError) return;
+
+    setUserRole(profile.role);
+    setAvatarUrl(profile.avatar_url);
+    setProfileExists(true);
+  }
+
+  async function uploadAvatar() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: [ImagePicker.MediaType.Images],
+      allowsEditing: true,
+      quality: 0.7,
+    });
+
+    if (result.canceled || !result.assets) return;
+    const image = result.assets[0];
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) return Alert.alert('Error', 'User not logged in');
+
+    const filePath = `${session.user.id}/${Date.now()}_avatar.jpg`;
+    const response = await fetch(image.uri);
+    const blob = await response.blob();
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, blob, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+
+    if (uploadError) return Alert.alert('Upload Error', uploadError.message);
+
+    const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+    await supabase
+      .from('profiles')
+      .update({ avatar_url: data.publicUrl })
+      .eq('id', session.user.id);
+
+    setAvatarUrl(data.publicUrl);
+  }
+
+  async function fetchEvents() {
+    setEvents([
+      { id: 1, title: 'Community Gathering', date: 'July 15, 2025' },
+      { id: 2, title: 'Art Workshop', date: 'July 20, 2025' },
+    ]);
+  }
+
+  async function fetchChairmanMessage() {
+    setChairmanMessage({
+      message: 'Welcome to the Hoopa Connect app! Stay connected, stay safe.',
+      date: 'July 9, 2025',
+    });
+  }
+
+  function openMenu() {
+    setMenuVisible(true);
+  }
+
+  function closeMenu() {
+    setMenuVisible(false);
+  }
+
+  function handleMenuNavigate(screen) {
+    closeMenu();
+    navigation.navigate(screen);
+  }
+
+  function handleContactUs() {
+    Linking.openURL('mailto:contact@hoopatribe-nsn.gov');
+  }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* Background Image with Overlay Logo */}
-      <View style={styles.heroContainer}>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
         <Image
-          source={require('../assets/hoopaveiw.jpeg')}
+          source={require('../assets/hoopaview.jpeg')}
           style={styles.backgroundImage}
+          resizeMode="cover"
         />
         <Image
           source={require('../assets/hoopa-logo.png')}
           style={styles.logoOverlay}
+          resizeMode="contain"
         />
-        {/* Hamburger menu */}
-        <TouchableOpacity
-          style={styles.menuIcon}
-          onPress={() => navigation.toggleDrawer?.()}
-        >
-          <Ionicons name="menu" size={28} color="white" />
-        </TouchableOpacity>
+        <Pressable onPress={openMenu} style={styles.hamburger}>
+          <View style={styles.bar} />
+          <View style={styles.bar} />
+          <View style={styles.bar} />
+        </Pressable>
+        <Pressable onPress={uploadAvatar} style={styles.avatarContainer}>
+          <Image
+            source={avatarUrl ? { uri: avatarUrl } : require('../assets/default-avatar.png')}
+            style={styles.avatar}
+          />
+        </Pressable>
       </View>
 
-      {/* Chairman's Daily Message */}
-      <View style={styles.chairmanMessageContainer}>
-        <Text style={styles.sectionTitle}>🗣 Words from our Chairman</Text>
-        <Image
-          source={require('../assets/chairman-joe.jpg')}
-          style={styles.chairmanImage}
-        />
-        <Text style={styles.chairmanName}>Chairman Joe Davis</Text>
-        <Text style={styles.chairmanMessage}>
-          “Our tribe is strong and resilient. As we look toward Sovereign Day,
-          let us remember our ancestors and honor the responsibility we carry
-          forward.” – July 5, 2025
-        </Text>
-      </View>
+      <Modal
+        visible={menuVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={closeMenu}
+      >
+        <Pressable style={styles.modalOverlay} onPress={closeMenu}>
+          <View style={styles.menuContainer}>
+            {[ 
+              { name: 'Home', screen: 'Home' },
+              { name: profileExists ? 'Edit Profile' : 'Create Profile', screen: profileExists ? 'EditProfile' : 'CreateProfile' },
+              { name: 'ID Vault', screen: 'IDVault' },
+              { name: 'Events', screen: 'Events' },
+              { name: 'Marketplace', screen: 'Marketplace' },
+              { name: 'Chairman Message', screen: 'ChairmanMessage' },
+              { name: 'Directory', screen: 'Directory' },
+              { name: 'Health Services', screen: 'HealthServices' },
+              { name: 'Housing', screen: 'Housing' },
+              { name: 'Public Safety', screen: 'PublicSafety' },
+              { name: 'Youth Programs', screen: 'YouthPrograms' },
+              { name: 'Education', screen: 'Education' },
+              { name: 'Employment', screen: 'Employment' },
+              { name: 'Contact', screen: 'Contact' },
+            ].map((item) => (
+              <TouchableOpacity
+                key={item.screen}
+                style={styles.menuItem}
+                onPress={() => handleMenuNavigate(item.screen)}
+              >
+                <Text style={styles.menuItemText}>{item.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
 
-      {/* Marketplace Preview */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🎨 Marketplace Spotlight</Text>
-        <Image
-          source={require('../assets/elkhorn_purses.jpeg')}
-          style={styles.marketImage}
-        />
-        <Text style={styles.sectionText}>
-          Explore handcrafted Elkhorn purses and beautiful Native jewelry by
-          local artisans in our growing community marketplace.
-        </Text>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.navigate('Marketplace')}
-        >
-          <Text style={styles.buttonText}>Visit Marketplace</Text>
-        </TouchableOpacity>
-      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {chairmanMessage && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Words from our Chairman</Text>
+            <Image
+              source={require('../assets/chairman-joe.jpg')}
+              style={styles.chairmanImage}
+              resizeMode="contain"
+            />
+            <Text style={styles.sectionText} numberOfLines={2} ellipsizeMode="tail">
+              {chairmanMessage.message}
+            </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('ChairmanMessage')} style={styles.button}>
+              <Text style={styles.buttonText}>Read Full Message</Text>
+            </TouchableOpacity>
+            <Text style={styles.date}>{chairmanMessage.date}</Text>
+          </View>
+        )}
 
-      {/* Events and News */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>📅 Community Events</Text>
-        <Text style={styles.sectionText}>
-          🎉 <Text style={{ fontWeight: 'bold' }}>Sovereign Day - July 10th:</Text> Join us for
-          food, games, drumming, and cultural celebration at the Tribal Gym and
-          ceremonial grounds. Parade starts at 10 AM, followed by feast, youth
-          activities, and traditional performances. All are welcome.
-        </Text>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.navigate('Events')}
-        >
-          <Text style={styles.buttonText}>See All Events</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Marketplace Preview</Text>
+          <Image
+            source={require('../assets/elkhorn_purses.jpeg')}
+            style={styles.marketImage}
+          />
+          <Text style={styles.sectionText}>
+            Explore handmade beadwork and more by local artists.
+          </Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.navigate('Marketplace')}
+          >
+            <Text style={styles.buttonText}>Visit Marketplace</Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Footer and Contact Info */}
-      <View style={styles.footer}>
-        <Text style={styles.sectionTitle}>📞 Tribal Directory</Text>
-        <Text style={styles.sectionText}>
-          📍 Hoopa Valley Tribal Office{'\n'}
-          Highway 96, Hoopa, CA 95546{'\n'}
-          ☎️ (530) 625-4211
-        </Text>
-        <TouchableOpacity style={styles.contactButton} onPress={openEmail}>
-          <Text style={styles.contactButtonText}>Contact Us</Text>
-        </TouchableOpacity>
-        <Text style={styles.aboutText}>
-          Hoopa Connect is your mobile hub for events, services, and tribal
-          resources. Stay informed and connected with your community.
-        </Text>
-      </View>
-    </ScrollView>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Community Events</Text>
+          {events.map((event) => (
+            <View key={event.id} style={styles.eventItem}>
+              <Text style={styles.eventTitle}>{event.title}</Text>
+              <Text style={styles.date}>{event.date}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About Hoopa Connect</Text>
+          <Text style={styles.sectionText}>
+            Hoopa Connect helps tribal members stay informed, access services, and connect with the community.
+          </Text>
+          <Text style={styles.sectionText}>
+            Address: Hoopa Valley Tribe, Hoopa, CA 95546
+          </Text>
+          <TouchableOpacity style={styles.button} onPress={handleContactUs}>
+            <Text style={styles.buttonText}>Contact Us</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#111',
-    flexGrow: 1,
-  },
-  heroContainer: {
-    position: 'relative',
-    height: 180,
-  },
-  backgroundImage: {
-    width: '100%',
-    height: '100%',
-  },
-  logoOverlay: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    width: 70,
-    height: 70,
-  },
-  menuIcon: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-  },
-  chairmanMessageContainer: {
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#222',
-  },
-  chairmanImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginVertical: 8,
-  },
-  chairmanName: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  chairmanMessage: {
-    fontSize: 14,
-    color: '#ddd',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  section: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    color: '#fff',
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  sectionText: {
-    fontSize: 15,
-    color: '#ccc',
-    marginBottom: 12,
-  },
-  marketImage: {
-    width: '100%',
-    height: 160,
-    borderRadius: 12,
-    marginBottom: 10,
-  },
-  button: {
-    backgroundColor: '#E63946',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  footer: {
-    backgroundColor: '#1a1a1a',
-    padding: 20,
-    borderTopWidth: 1,
-    borderColor: '#333',
-    marginTop: 10,
-  },
-  contactButton: {
-    marginTop: 10,
-    backgroundColor: '#457B9D',
-    padding: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  contactButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  aboutText: {
-    color: '#888',
-    fontSize: 13,
-    marginTop: 10,
-    textAlign: 'center',
-  },
+  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  header: { position: 'relative' },
+  backgroundImage: { width: '100%', height: 250 },
+  logoOverlay: { position: 'absolute', top: 10, left: 10, width: 80, height: 80 },
+  hamburger: { position: 'absolute', top: 20, right: 20 },
+  bar: { width: 25, height: 3, backgroundColor: '#fff', marginVertical: 2 },
+  avatarContainer: { position: 'absolute', top: 20, right: 60 },
+  avatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: '#fff' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-start', paddingTop: 80 },
+  menuContainer: { backgroundColor: '#fff', marginHorizontal: 20, borderRadius: 12, padding: 16 },
+  menuItem: { paddingVertical: 10 },
+  menuItemText: { fontSize: 16 },
+  scrollContent: { padding: 16 },
+  section: { marginBottom: 24, backgroundColor: '#fff', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
+  sectionText: { fontSize: 14, color: '#333', marginBottom: 4 },
+  chairmanImage: { width: '100%', height: 180, borderRadius: 10, marginBottom: 10 },
+  marketImage: { width: '100%', height: 200, borderRadius: 10, marginBottom: 10 },
+  button: { backgroundColor: '#4e6bff', paddingVertical: 10, borderRadius: 8, marginTop: 10 },
+  buttonText: { color: '#fff', textAlign: 'center', fontWeight: 'bold' },
+  eventItem: { marginBottom: 8 },
+  eventTitle: { fontWeight: 'bold', fontSize: 16 },
+  date: { color: '#777', fontSize: 13 },
 });

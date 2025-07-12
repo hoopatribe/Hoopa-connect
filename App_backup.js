@@ -2,7 +2,6 @@ import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { supabase } from './lib/supabase';
 
 import WelcomeScreen from './screens/WelcomeScreen';
@@ -14,6 +13,7 @@ import IDVaultScreen from './screens/IDVaultScreen';
 import ChairmanDashboard from './screens/ChairmanDashboard';
 import EnrollmentDashboard from './screens/EnrollmentDashboard';
 import ChairmanMessageScreen from './screens/ChairmanMessageScreen';
+import MarketplaceScreen from './screens/MarketplaceScreen';
 import EditProfileScreen from './screens/EditProfileScreen';
 
 import EventsScreen from './screens/EventsScreen';
@@ -26,68 +26,23 @@ import EducationScreen from './screens/EducationScreen';
 import EmploymentScreen from './screens/EmploymentScreen';
 import ContactScreen from './screens/ContactScreen';
 
-import MarketplaceListScreen from './screens/MarketplaceListScreen';
-import EditItemScreen from './screens/MarketplaceEditScreen';
-import MarketplaceCreateScreen from './screens/MarketplaceCreateScreen';
-import MyMarketplaceScreen from './screens/MyMarketplaceScreen';
-
 import { UserProvider } from './context/UserContext';
 
 const Drawer = createDrawerNavigator();
-const Stack = createNativeStackNavigator();
-
-function MarketplaceStack() {
-  return (
-    <Stack.Navigator>
-      <Stack.Screen
-        name="MarketplaceMain"
-        component={MarketplaceListScreen}
-        options={{ title: 'Marketplace' }}
-      />
-      <Stack.Screen
-        name="MarketplaceEdit"
-        component={EditItemScreen}
-        options={{ title: 'Edit Item' }}
-      />
-      <Stack.Screen
-        name="MarketplacePost"
-        component={MarketplaceCreateScreen}
-        options={{ title: 'Post New Item' }}
-      />
-    </Stack.Navigator>
-  );
-}
 
 export default function App() {
   const [initialRoute, setInitialRoute] = useState(null);
 
   useEffect(() => {
     const checkSession = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-
-        if (error) {
-          console.log('❌ Error getting session:', error.message);
-          setInitialRoute('Welcome');
-          return;
-        }
-
-        const session = data.session;
-
-        if (session) {
-          console.log('✅ Supabase session:', session);
-          console.log('🔑 User ID:', session.user.id);
-          setInitialRoute('Home');
-        } else {
-          console.log('⚠️ No active session found');
-          setInitialRoute('Welcome');
-        }
-      } catch (err) {
-        console.error('⚠️ Session check failed:', err);
+      const { data } = await supabase.auth.getSession();
+      console.log('Supabase session:', data.session);
+      if (data.session) {
+        setInitialRoute('Home');
+      } else {
         setInitialRoute('Welcome');
       }
     };
-
     checkSession();
   }, []);
 
@@ -116,8 +71,7 @@ export default function App() {
           <Drawer.Screen name="ChairmanDashboard" component={ChairmanDashboard} />
           <Drawer.Screen name="EnrollmentDashboard" component={EnrollmentDashboard} />
           <Drawer.Screen name="ChairmanMessage" component={ChairmanMessageScreen} />
-          <Drawer.Screen name="Marketplace" component={MarketplaceStack} />
-          <Drawer.Screen name="My Listings" component={MyMarketplaceScreen} />
+          <Drawer.Screen name="Marketplace" component={MarketplaceScreen} />
           <Drawer.Screen name="EditProfile" component={EditProfileScreen} />
           <Drawer.Screen name="Events" component={EventsScreen} />
           <Drawer.Screen name="Directory" component={DirectoryScreen} />

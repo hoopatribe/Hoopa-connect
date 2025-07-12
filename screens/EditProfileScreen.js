@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Alert, ScrollView,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  StyleSheet,
+  Alert,
+  ScrollView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
@@ -14,7 +21,13 @@ export default function EditProfileScreen() {
   const [phone, setPhone] = useState('');
   const [profilePic, setProfilePic] = useState(null);
 
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
   const fetchProfile = async () => {
+    if (!user?.id) return;
+
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -23,34 +36,68 @@ export default function EditProfileScreen() {
 
     if (error) {
       console.error('Error loading profile:', error.message);
-    } else {
-      setProfile(data);
-      setFullName(data.full_name || '');
-      setPhone(data.phone || '');
-      setProfilePic(data.profile_pic || null);
+      return;
+    }
+
+    setProfile(data);
+    setFullName(data.full_name || '');
+    setPhone(data.phone || '');
+    setProfilePic(data.profile_pic || null);
+  };
+
+  const pickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (permissionResult.status !== 'granted') {
+      Alert.alert('Permission Denied', 'Camera roll access is required to upload an image.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaType.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      setProfilePic(result.assets[0]);
     }
   };
 
   const uploadProfilePic = async () => {
     if (!profilePic || !profilePic.uri) return profile?.profile_pic;
 
-    const ext = profilePic.uri.split('.').pop();
-    const filename = `${uuid.v4()}.${ext}`;
-    const { error } = await supabase.storage
-      .from('avatars')
-      .upload(filename, {
-        uri: profilePic.uri,
-        type: 'image/jpeg',
-        name: filename,
-      });
+    try {
+      const ext = profilePic.uri.split('.').pop();
+      const filename = `${uuid.v4()}.${ext}`;
 
-    if (error) throw error;
+      const response = await fetch(profilePic.uri);
+      const blob = await response.blob();
 
-    const { data } = supabase.storage.from('avatars').getPublicUrl(filename);
-    return data.publicUrl;
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filename, blob, { upsert: true });
+
+      if (uploadError) {
+        console.error('Upload error:', uploadError.message);
+        throw uploadError;
+      }
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filename);
+      return data.publicUrl;
+    } catch (err) {
+      console.error('Upload failed:', err.message);
+      throw err;
+    }
   };
 
   const saveProfile = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'No logged-in user.');
+      return;
+    }
+
     try {
       const picUrl = await uploadProfilePic();
 
@@ -71,19 +118,6 @@ export default function EditProfileScreen() {
       Alert.alert('Error', 'Failed to save profile');
     }
   };
-
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-    });
-
-    if (!result.canceled) setProfilePic(result.assets[0]);
-  };
-
-  useEffect(() => {
-    fetchProfile();
-  }, []);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
