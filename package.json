@@ -7,13 +7,17 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "format": "prettier --write ."
   },
   "dependencies": {
+    "@react-native-community/geolocation": "^3.4.0",
     "@react-navigation/drawer": "^7.5.2",
     "@react-navigation/native": "^7.1.14",
     "@react-navigation/native-stack": "^7.3.21",
+    "@react-navigation/stack": "^7.4.2",
     "@supabase/supabase-js": "^2.50.3",
+    "axios": "^1.10.0",
     "buffer": "^6.0.3",
     "expo": "~53.0.16",
     "expo-document-picker": "~13.1.6",
@@ -21,17 +25,37 @@
     "expo-secure-store": "~14.2.3",
     "expo-status-bar": "~2.2.3",
     "react": "19.0.0",
+    "react-dom": "19.0.0",
     "react-native": "0.79.5",
     "react-native-gesture-handler": "~2.24.0",
+    "react-native-maps": "1.20.1",
     "react-native-paper": "^5.14.5",
     "react-native-reanimated": "~3.17.4",
-    "react-native-safe-area-context": "5.4.0",
+    "react-native-safe-area-context": "^5.4.0",
     "react-native-screens": "~4.11.1",
     "react-native-uuid": "^2.0.3",
-    "react-native-vector-icons": "^10.2.0"
+    "react-native-vector-icons": "^10.2.0",
+    "react-native-web": "^0.20.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.20.0",
+    "prettier": "^3.6.2",
+    "react-devtools-core": "^6.1.5"
   },
-  "private": true
+  "private": true,
+  "description": "[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary) ](https://gitlab.com/sweatybridge/setup-cli/-/pipelines)",
+  "directories": {
+    "lib": "lib"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoopatribe/Hoopa-connect.git"
+  },
+  "keywords": [],
+  "author": "",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/hoopatribe/Hoopa-connect/issues"
+  },
+  "homepage": "https://github.com/hoopatribe/Hoopa-connect#readme"
 }
